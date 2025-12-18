@@ -29,7 +29,7 @@ class ProjectCreate(BaseModel):
     title: str
     description: str
     technologies: List[str]
-    highlights: List[str]
+    highlights: Optional[List[str]] = None
     url: Optional[str] = None
     demo_url: Optional[str] = None
     start_date: Optional[str] = None
@@ -124,6 +124,40 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new manual project."""
+    # Auto-generate highlights if not provided or empty
+    highlights = project_data.highlights
+    if not highlights or len(highlights) == 0:
+        try:
+            from app.services.gemini_client import gemini_client
+            
+            prompt = f"""Generate exactly 3 concise, technical bullet points for this project. Each point should:
+- Be one line (max 80-100 characters)
+- Start with a strong action verb (Developed, Implemented, Architected, Designed, Built, Integrated, Optimized)
+- Focus on technical implementation and impact
+- Include technologies used: {', '.join(project_data.technologies)}
+- Be specific about what was accomplished
+
+Project Title: {project_data.title}
+Project Description: {project_data.description}
+
+Return ONLY the 3 bullet points, one per line, no numbering or bullets."""
+
+            response = await gemini_client.generate_content(
+                prompt=prompt,
+                temperature=0.7,
+                max_tokens=300,
+            )
+            
+            # Parse the response into lines
+            generated_highlights = [line.strip() for line in response.strip().split('\n') if line.strip()]
+            if len(generated_highlights) >= 3:
+                highlights = generated_highlights[:3]
+            else:
+                highlights = project_data.highlights or []
+        except Exception as e:
+            # If generation fails, use provided highlights or empty
+            highlights = project_data.highlights or []
+    
     # Create project
     project = Project(
         user_id=current_user.id,
@@ -131,7 +165,7 @@ async def create_project(
         title=project_data.title,
         description=project_data.description,
         technologies=project_data.technologies,
-        highlights=project_data.highlights,
+        highlights=highlights,
         url=project_data.url,
         demo_url=project_data.demo_url,
         is_verified=True,  # Manual entries are trusted

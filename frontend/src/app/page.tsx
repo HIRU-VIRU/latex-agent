@@ -11,9 +11,9 @@ import {
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-blue-950 dark:to-purple-950">
       {/* Header */}
-      <header className="border-b">
+      <header className="border-b bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <FileText className="h-8 w-8" />
@@ -35,7 +35,7 @@ export default function HomePage() {
         <h1 className="text-5xl font-bold tracking-tight mb-6">
           JD-Aware, GitHub-Grounded
           <br />
-          <span className="text-primary">Resume Generation</span>
+          <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Resume Generation</span>
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
           Generate ATS-friendly LaTeX resumes that highlight your real projects 
@@ -44,7 +44,7 @@ export default function HomePage() {
         </p>
         <div className="flex gap-4 justify-center">
           <Link href="/login">
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-500/50">
               <Github className="h-5 w-5" />
               Connect GitHub
             </Button>

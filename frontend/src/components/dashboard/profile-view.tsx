@@ -26,6 +26,14 @@ interface EducationEntry {
   gpa?: string;
 }
 
+interface CertificationEntry {
+  name: string;
+  issuer: string;
+  date: string;
+  credential_id?: string;
+  url?: string;
+}
+
 interface ProfileData {
   id: string;
   email: string;
@@ -49,6 +57,7 @@ interface ProfileData {
   experience?: ExperienceEntry[];
   education?: EducationEntry[];
   skills?: string[];
+  certifications?: CertificationEntry[];
 }
 
 export function ProfileView() {
@@ -110,6 +119,7 @@ export function ProfileView() {
         experience: profile.experience,
         education: profile.education,
         skills: profile.skills,
+        certifications: profile.certifications,
       });
       setProfile(response.data);
       toast({
@@ -155,11 +165,7 @@ export function ProfileView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Profile</h2>
-          <p className="text-muted-foreground">View and edit your profile information</p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? "Saving..." : "Save Changes"}
         </Button>
@@ -660,6 +666,179 @@ export function ProfileView() {
                         handleChange("education", newEducation);
                       }}
                       placeholder="e.g., 3.8/4.0"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Certifications */}
+      <Card className="border-l-4 border-l-amber-400">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-2xl">🏆</span>
+                Certifications
+              </CardTitle>
+              <CardDescription>Your professional certifications and credentials</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!profile.linkedin_url) {
+                    toast({
+                      title: "LinkedIn URL Required",
+                      description: "Please add your LinkedIn URL to your profile first!",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
+                  try {
+                    toast({
+                      title: "Opening LinkedIn...",
+                      description: "A browser will open. Please log in to LinkedIn if needed, then wait while we scrape your certifications.",
+                    });
+                    
+                    const response = await api.post('/api/auth/linkedin/scrape-certifications');
+                    
+                    if (response.data.success) {
+                      // Reload profile to get updated certifications
+                      const updatedProfile = await api.get('/api/auth/profile');
+                      setProfile(updatedProfile.data);
+                      
+                      toast({
+                        title: "Success!",
+                        description: response.data.message,
+                      });
+                    }
+                  } catch (error: any) {
+                    console.error('Error scraping LinkedIn:', error);
+                    toast({
+                      title: "Scraping Failed",
+                      description: error.response?.data?.detail || "Failed to scrape LinkedIn. Make sure you logged in when the browser opened.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className="border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+              >
+                <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+                Import from LinkedIn
+              </Button>
+              <Button
+                onClick={() => {
+                  const newCert: CertificationEntry = {
+                    name: "",
+                    issuer: "",
+                    date: "",
+                    credential_id: "",
+                    url: "",
+                  };
+                  handleChange("certifications", [...(profile.certifications || []), newCert]);
+                }}
+                className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
+              >
+                Add Manually
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {(!profile.certifications || profile.certifications.length === 0) ? (
+            <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+              <p className="text-sm">
+                No certifications added yet. Import from LinkedIn or add manually.
+              </p>
+            </div>
+          ) : (
+            profile.certifications.map((cert, idx) => (
+              <div key={idx} className="p-4 border rounded-lg space-y-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-semibold text-amber-900 dark:text-amber-100">Certification {idx + 1}</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newCertifications = profile.certifications!.filter((_, i) => i !== idx);
+                      handleChange("certifications", newCertifications);
+                    }}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`cert-name-${idx}`}>Certification Name *</Label>
+                    <Input
+                      id={`cert-name-${idx}`}
+                      value={cert.name}
+                      onChange={(e) => {
+                        const newCertifications = [...profile.certifications!];
+                        newCertifications[idx] = { ...newCertifications[idx], name: e.target.value };
+                        handleChange("certifications", newCertifications);
+                      }}
+                      placeholder="AWS Certified Solutions Architect"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`cert-issuer-${idx}`}>Issuing Organization *</Label>
+                    <Input
+                      id={`cert-issuer-${idx}`}
+                      value={cert.issuer}
+                      onChange={(e) => {
+                        const newCertifications = [...profile.certifications!];
+                        newCertifications[idx] = { ...newCertifications[idx], issuer: e.target.value };
+                        handleChange("certifications", newCertifications);
+                      }}
+                      placeholder="Amazon Web Services"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`cert-date-${idx}`}>Issue Date *</Label>
+                    <Input
+                      id={`cert-date-${idx}`}
+                      value={cert.date}
+                      onChange={(e) => {
+                        const newCertifications = [...profile.certifications!];
+                        newCertifications[idx] = { ...newCertifications[idx], date: e.target.value };
+                        handleChange("certifications", newCertifications);
+                      }}
+                      placeholder="January 2024"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`cert-id-${idx}`}>Credential ID</Label>
+                    <Input
+                      id={`cert-id-${idx}`}
+                      value={cert.credential_id || ""}
+                      onChange={(e) => {
+                        const newCertifications = [...profile.certifications!];
+                        newCertifications[idx] = { ...newCertifications[idx], credential_id: e.target.value };
+                        handleChange("certifications", newCertifications);
+                      }}
+                      placeholder="ABC123XYZ"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor={`cert-url-${idx}`}>Credential URL</Label>
+                    <Input
+                      id={`cert-url-${idx}`}
+                      value={cert.url || ""}
+                      onChange={(e) => {
+                        const newCertifications = [...profile.certifications!];
+                        newCertifications[idx] = { ...newCertifications[idx], url: e.target.value };
+                        handleChange("certifications", newCertifications);
+                      }}
+                      placeholder="https://www.credly.com/badges/..."
                     />
                   </div>
                 </div>

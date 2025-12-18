@@ -338,6 +338,15 @@ async def generate_resume(
             elif isinstance(current_user.experience, list):
                 default_experience = current_user.experience
         
+        # Build default certifications from user if not provided
+        default_certifications = []
+        if hasattr(current_user, 'certifications') and current_user.certifications:
+            import json
+            if isinstance(current_user.certifications, str):
+                default_certifications = json.loads(current_user.certifications)
+            elif isinstance(current_user.certifications, list):
+                default_certifications = current_user.certifications
+        
         # Build user data
         user_data = {
             "personal": generate_data.personal or default_personal,
@@ -355,6 +364,7 @@ async def generate_resume(
             ],
             "experience": generate_data.experience or default_experience,
             "education": generate_data.education or default_education,
+            "certifications": default_certifications,
         }
         
         # Get JD context if available

@@ -63,6 +63,10 @@ class User(Base):
     # Skills (stored as JSON)
     skills: Mapped[Optional[list]] = mapped_column(JSON(), nullable=True)
     
+    # Certifications array (stored as JSON)
+    # Format: [{"name": str, "issuer": str, "date": str, "credential_id": str, "url": str}]
+    certifications: Mapped[Optional[list]] = mapped_column(JSON(), nullable=True)
+    
     # Account status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -78,6 +82,11 @@ class User(Base):
     # Relationships
     github_connections: Mapped[List["GithubConnection"]] = relationship(
         "GithubConnection", 
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    linkedin_connections: Mapped[List["LinkedInConnection"]] = relationship(
+        "LinkedInConnection", 
         back_populates="user",
         cascade="all, delete-orphan"
     )
@@ -106,6 +115,40 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+
+class LinkedInConnection(Base):
+    """LinkedIn account connection for a user."""
+    
+    __tablename__ = "linkedin_connections"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), 
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True
+    )
+    
+    # LinkedIn data
+    linkedin_user_id: Mapped[str] = mapped_column(String(255), unique=True)
+    linkedin_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    # Encrypted access token
+    encrypted_token: Mapped[str] = mapped_column(Text)
+    
+    # Connection metadata
+    scopes: Mapped[Optional[list]] = mapped_column(JSON(), nullable=True)
+    
+    # Timestamps
+    connected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    token_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="linkedin_connections")
 
 
 class GithubConnection(Base):

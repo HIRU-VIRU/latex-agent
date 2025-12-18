@@ -4,7 +4,7 @@ Authentication Routes
 User authentication and GitHub OAuth.
 """
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import RedirectResponse
@@ -22,7 +22,7 @@ from app.core.security import (
     create_access_token,
     token_encryptor,
 )
-from app.models.user import User, GithubConnection
+from app.models.user import User, GithubConnection, LinkedInConnection
 from app.api.deps import get_current_user
 from app.services.document_parser import DocumentParserService
 from app.services.gemini_client import gemini_client
@@ -89,6 +89,7 @@ class UserProfileResponse(BaseModel):
     experience: Optional[list]
     education: Optional[list]
     skills: Optional[list]
+    certifications: Optional[list]
     
     class Config:
         from_attributes = True
@@ -116,6 +117,7 @@ class UserProfileUpdate(BaseModel):
     experience: Optional[list] = None
     education: Optional[list] = None
     skills: Optional[list] = None
+    certifications: Optional[list] = None
 
 
 class GitHubCallbackRequest(BaseModel):
@@ -545,6 +547,7 @@ async def get_profile(
         experience=current_user.experience,
         education=current_user.education,
         skills=current_user.skills,
+        certifications=current_user.certifications,
     )
 
 
@@ -595,4 +598,223 @@ async def update_profile(
         experience=current_user.experience,
         education=current_user.education,
         skills=current_user.skills,
+        certifications=current_user.certifications,
     )
+
+
+@router.get("/github/status")
+async def get_github_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get GitHub connection status for the current user."""
+    result = await db.execute(
+        select(GithubConnection).where(
+            GithubConnection.user_id == current_user.id,
+            GithubConnection.is_primary == True,
+        )
+    )
+    github_conn = result.scalar_one_or_none()
+    
+    if github_conn:
+        return {
+            "connected": True,
+            "username": github_conn.github_username,
+            "avatar_url": github_conn.github_avatar_url,
+            "connected_at": github_conn.connected_at.isoformat(),
+        }
+    else:
+        return {
+            "connected": False,
+        }
+
+
+@router.get("/linkedin/status")
+async def get_linkedin_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get LinkedIn connection status for the current user."""
+    result = await db.execute(
+        select(LinkedInConnection).where(
+            LinkedInConnection.user_id == current_user.id,
+        )
+    )
+    linkedin_conn = result.scalar_one_or_none()
+    
+    if linkedin_conn:
+        return {
+            "connected": True,
+            "email": linkedin_conn.linkedin_email,
+            "connected_at": linkedin_conn.connected_at.isoformat(),
+        }
+    else:
+        return {
+            "connected": False,
+        }
+
+
+@router.get("/linkedin/authorize")
+async def linkedin_authorize():
+    """Get LinkedIn OAuth authorization URL."""
+    if not settings.LINKEDIN_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LinkedIn OAuth not configured. Please set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET in environment variables.",
+        )
+    
+    params = {
+        "response_type": "code",
+        "client_id": settings.LINKEDIN_CLIENT_ID,
+        "redirect_uri": settings.LINKEDIN_CALLBACK_URL,
+        "scope": "openid profile email",
+    }
+    
+    url = "https://www.linkedin.com/oauth/v2/authorization?" + "&".join(
+        f"{k}={v}" for k, v in params.items()
+    )
+    
+    return {"authorization_url": url}
+
+
+@router.post("/linkedin/callback")
+async def linkedin_callback(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle LinkedIn OAuth callback and store access token."""
+    if not settings.LINKEDIN_CLIENT_ID or not settings.LINKEDIN_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LinkedIn OAuth not configured",
+        )
+    
+    # Exchange code for access token
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://www.linkedin.com/oauth/v2/accessToken",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": settings.LINKEDIN_CLIENT_ID,
+                "client_secret": settings.LINKEDIN_CLIENT_SECRET,
+                "redirect_uri": settings.LINKEDIN_CALLBACK_URL,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        token_data = token_response.json()
+    
+    if "error" in token_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"LinkedIn OAuth error: {token_data.get('error_description', token_data['error'])}",
+        )
+    
+    access_token = token_data["access_token"]
+    
+    # Get LinkedIn user profile
+    async with httpx.AsyncClient() as client:
+        profile_response = await client.get(
+            "https://api.linkedin.com/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        profile_data = profile_response.json()
+    
+    linkedin_user_id = profile_data["sub"]
+    linkedin_email = profile_data.get("email")
+    
+    # Check if LinkedIn connection exists
+    result = await db.execute(
+        select(LinkedInConnection).where(
+            LinkedInConnection.user_id == current_user.id
+        )
+    )
+    linkedin_conn = result.scalar_one_or_none()
+    
+    if linkedin_conn:
+        # Update existing connection
+        linkedin_conn.encrypted_token = token_encryptor.encrypt(access_token)
+        linkedin_conn.linkedin_user_id = linkedin_user_id
+        linkedin_conn.linkedin_email = linkedin_email
+        linkedin_conn.token_updated_at = datetime.utcnow()
+    else:
+        # Create new connection
+        linkedin_conn = LinkedInConnection(
+            user_id=current_user.id,
+            linkedin_user_id=linkedin_user_id,
+            linkedin_email=linkedin_email,
+            encrypted_token=token_encryptor.encrypt(access_token),
+            scopes=["openid", "profile", "email", "w_member_social"],
+        )
+        db.add(linkedin_conn)
+    
+    await db.commit()
+    
+    return {"message": "LinkedIn connected successfully"}
+
+
+@router.post("/linkedin/scrape-certifications")
+async def scrape_linkedin_certifications_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Scrape certifications from user's LinkedIn profile URL using Playwright.
+    Uses the linkedin_url from user's profile.
+    """
+    from app.services.linkedin_scraper import scrape_linkedin_certifications, parse_linkedin_url
+    
+    if not current_user.linkedin_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No LinkedIn URL found in profile. Please add your LinkedIn URL first."
+        )
+    
+    # Validate and normalize URL
+    linkedin_url = parse_linkedin_url(current_user.linkedin_url)
+    if not linkedin_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid LinkedIn URL format"
+        )
+    
+    try:
+        # Scrape certifications using Playwright
+        certifications = await scrape_linkedin_certifications(linkedin_url)
+        
+        if not certifications:
+            return {
+                "success": True,
+                "message": "No certifications found on LinkedIn profile",
+                "certifications": []
+            }
+        
+        # Merge with existing certifications (avoid duplicates)
+        existing_certs = current_user.certifications or []
+        existing_names = {cert.get('name', '').lower() for cert in existing_certs}
+        
+        new_certs = [
+            cert for cert in certifications
+            if cert.get('name', '').lower() not in existing_names
+        ]
+        
+        # Update user certifications
+        current_user.certifications = existing_certs + new_certs
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Imported {len(new_certs)} new certifications from LinkedIn",
+            "certifications": new_certs,
+            "total_certifications": len(current_user.certifications)
+        }
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Error scraping LinkedIn certifications: {str(e)}\n{error_details}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scrape certifications: {str(e)}"
+        )

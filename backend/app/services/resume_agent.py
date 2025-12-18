@@ -24,7 +24,7 @@ class GenerationResult:
 
 
 # Anti-hallucination system prompt
-SYSTEM_PROMPT = """You are a professional resume LaTeX formatter. Your ONLY job is to fill a LaTeX template with provided user data.
+SYSTEM_PROMPT = r"""You are a professional resume LaTeX formatter. Your ONLY job is to fill a LaTeX template with provided user data.
 
 CRITICAL RULES - VIOLATION WILL CAUSE ERRORS:
 
@@ -68,7 +68,16 @@ CRITICAL RULES - VIOLATION WILL CAUSE ERRORS:
    - Always close all LaTeX commands properly
    - Test: Count your { and } - they MUST be equal
 
-7. OUTPUT FORMAT:
+7. FONT CONSISTENCY (CRITICAL):
+   - Use ONLY \textbf{} for bold text (NEVER use \bf, \bfseries, or {\bf })
+   - Use ONLY \textit{} for italic text (NEVER use \it, \itshape, or {\it })
+   - Use ONLY \texttt{} for monospace text (NEVER use \tt, \ttfamily, or {\tt })
+   - DO NOT mix font commands (e.g., NEVER nest \textbf{\textit{}} - pick one)
+   - DO NOT use old-style font commands: \bf, \it, \rm, \sc, \tt
+   - DO NOT use declarative commands: \bfseries, \itshape, \ttfamily
+   - Maintain consistent font usage throughout the entire document
+
+8. OUTPUT FORMAT:
    - Return ONLY valid LaTeX code
    - Preserve all template commands exactly
    - Escape special LaTeX characters: & % $ # _ { } ~ ^
@@ -123,6 +132,9 @@ class ResumeGenerationAgent:
             # Extract LaTeX from response (handle potential markdown wrapping)
             latex_content = self._extract_latex(response)
             
+            # Fix common font inconsistencies
+            latex_content = self._fix_font_commands(latex_content)
+            
             # Validate grounding
             warnings = self._validate_grounding(latex_content, user_data)
             
@@ -165,7 +177,7 @@ DO NOT add any information not in user_data.
 </jd_context>
 """
         
-        prompt = f"""Fill this LaTeX resume template with the provided user data.
+        prompt = rf"""Fill this LaTeX resume template with the provided user data.
 
 <template>
 {template}
@@ -189,6 +201,26 @@ LATEX SYNTAX RULES (MUST FOLLOW):
 - Escape special chars: use \\& \\% \\$ \\# \\_ for & % $ # _
 - Close ALL commands: \\command{{text}} not \\command{{text
 
+FONT CONSISTENCY RULES (CRITICAL):
+- Use ONLY \\textbf{{text}} for bold (NOT \\bf, \\bfseries, or {{\\bf text}})
+- Use ONLY \\textit{{text}} for italics (NOT \\it, \\itshape, or {{\\it text}})
+- Use ONLY \\texttt{{text}} for monospace (NOT \\tt, \\ttfamily, or {{\\tt text}})
+- DO NOT mix font commands (avoid \\textbf{{\\textit{{text}}}})
+- Maintain uniform font usage throughout the entire document
+- When the template already has font commands (like \\textbf or \\textit), preserve them exactly
+
+URL FORMATTING RULES (CRITICAL):
+- For project URLs: Use ONLY \\href{{url}}{{Link}} format (just the word "Link")
+- For personal URLs in header section: Use descriptive labels based on URL content:
+  * GitHub URLs: \\href{{url}}{{GitHub}}
+  * LinkedIn URLs: \\href{{url}}{{LinkedIn}}
+  * Portfolio/personal websites: \\href{{url}}{{Portfolio}} or \\href{{url}}{{Website}}
+- NEVER display the full URL text in the visible output
+- NEVER use \\underline with URLs (hyperlinks are already underlined)
+- NEVER add icons like \\faGlobe or \\faExternalLink unless template explicitly includes them
+- NEVER add prefixes like "GitHub project:" or "Project:" to project titles
+- Keep URL links simple and clean: \\href{{https://example.com}}{{Link}} NOT \\href{{https://example.com}}{{\\underline{{example.com}}}}
+
 INSTRUCTIONS:
 1. Replace all placeholders ({{{{PLACEHOLDER}}}}) with corresponding user data
 2. For {{{{#ARRAY}}}}...{{{{/ARRAY}}}} sections, iterate over the array
@@ -199,6 +231,7 @@ INSTRUCTIONS:
    - Include specific technologies used (from the project's tech stack)
    - Start with strong action verbs (Developed, Architected, Implemented, Integrated, Optimized, Designed)
    - For project URLs: use \\href{{url}}{{Link}} format, do NOT display full URL text
+   - NEVER add prefixes like "GitHub project:" or "Project:" to project titles - just use the title as-is
 4. **CRITICAL** For missing/empty data: COMPLETELY DELETE the entire section (including headers and ALL content)
    - Check if WORK EXPERIENCE data exists - if NO, DELETE entire \\section{{Experience}} block
    - Check if EDUCATION data exists - if NO, DELETE entire \\section{{Education}} block  
@@ -209,12 +242,16 @@ INSTRUCTIONS:
 5. For EDUCATION section:
    - Include ALL education entries from the data (if user has 2 education items, show both)
    - Use school, degree, field, dates, location, gpa fields
-6. Preserve all LaTeX commands and structure for sections that HAVE data
-7. Maintain template alignment - do NOT modify spacing, indentation, or formatting commands
-8. Ensure the final output will compile to a single-page PDF
-9. VERIFY: Count all braces - they must be balanced!
-10. VERIFY: No command has empty blank arguments
-11. Return ONLY the filled LaTeX code, no explanations
+6. For CERTIFICATIONS section:
+   - Include ALL certifications from the data
+   - Use name, issuer, date, credential_id, url fields
+   - If CERTIFICATIONS data exists, include it; if empty/missing, DELETE the entire section
+7. Preserve all LaTeX commands and structure for sections that HAVE data
+8. Maintain template alignment - do NOT modify spacing, indentation, or formatting commands
+9. Ensure the final output will compile to a single-page PDF
+10. VERIFY: Count all braces - they must be balanced!
+11. VERIFY: No command has empty blank arguments
+12. Return ONLY the filled LaTeX code, no explanations
 
 OUTPUT: Complete, valid LaTeX code ready for compilation (single page)."""
 
@@ -285,9 +322,24 @@ OUTPUT: Complete, valid LaTeX code ready for compilation (single page)."""
                 if edu.get('gpa'):
                     formatted_parts.append(f"    GPA: {edu.get('gpa')}")
         
+        # Certifications
+        if "certifications" in user_data and user_data["certifications"]:
+            formatted_parts.append("\nCERTIFICATIONS:")
+            for i, cert in enumerate(user_data["certifications"], 1):
+                formatted_parts.append(f"\n  Certification {i}:")
+                formatted_parts.append(f"    Name: {cert.get('name', 'N/A')}")
+                if cert.get('issuer'):
+                    formatted_parts.append(f"    Issuer: {cert.get('issuer')}")
+                if cert.get('date'):
+                    formatted_parts.append(f"    Date: {cert.get('date')}")
+                if cert.get('credential_id'):
+                    formatted_parts.append(f"    Credential ID: {cert.get('credential_id')}")
+                if cert.get('url'):
+                    formatted_parts.append(f"    URL: {cert.get('url')}")
+        
         # Any additional fields
         for key, value in user_data.items():
-            if key not in {"personal", "skills", "projects", "experience", "education"}:
+            if key not in {"personal", "skills", "projects", "experience", "education", "certifications"}:
                 if isinstance(value, list):
                     formatted_parts.append(f"\n{key.upper()}: {', '.join(str(v) for v in value)}")
                 else:
@@ -409,6 +461,215 @@ OUTPUT: Complete, valid LaTeX code ready for compilation (single page)."""
                 for match in matches:
                     if match not in user_data_str:
                         warnings.append(f"Potential ungrounded {desc}: {match}")
+        
+        # Check for font consistency issues
+        font_warnings = self._check_font_consistency(latex)
+        warnings.extend(font_warnings)
+        
+        return warnings
+    
+    def _fix_font_commands(self, latex: str) -> str:
+        r"""
+        Automatically fix common font inconsistencies by replacing old-style
+        and declarative font commands with modern \textXX{} commands.
+        
+        Note: This preserves legitimate uses of \bfseries etc. in:
+        - \titleformat commands (section formatting)
+        - Header blocks with size commands like {\LARGE\bfseries Name}
+        
+        Only fixes old-style commands in regular document content.
+        """
+        import re
+        
+        # Fix old-style font commands
+        # \bf text -> \textbf{text}
+        # This is tricky because old commands affect text until scope ends
+        # For simplicity, we'll just warn about these - manual fix is safer
+        
+        # Fix simple patterns: {\bf text} -> \textbf{text}
+        latex = re.sub(r'\{\\bf\s+([^}]+)\}', r'\\textbf{\1}', latex)
+        latex = re.sub(r'\{\\it\s+([^}]+)\}', r'\\textit{\1}', latex)
+        latex = re.sub(r'\{\\tt\s+([^}]+)\}', r'\\texttt{\1}', latex)
+        latex = re.sub(r'\{\\sc\s+([^}]+)\}', r'\\textsc{\1}', latex)
+        latex = re.sub(r'\{\\rm\s+([^}]+)\}', r'\\textrm{\1}', latex)
+        
+        # Fix patterns without braces but with space: \bf text -> \textbf{text}
+        # This is less safe, so we only do it for simple word patterns
+        latex = re.sub(r'\\bf\s+(\w+)', r'\\textbf{\1}', latex)
+        latex = re.sub(r'\\it\s+(\w+)', r'\\textit{\1}', latex)
+        latex = re.sub(r'\\tt\s+(\w+)', r'\\texttt{\1}', latex)
+        
+        # Fix declarative commands in document body content (not in headers or \titleformat)
+        # We only fix isolated uses like {\bfseries text} not combined with size commands
+        # This avoids breaking headers like {\LARGE\bfseries Name}
+        
+        # Fix declarative commands in document body content
+        # We need to be careful not to break legitimate uses in headers/titleformat
+        
+        # First, preserve the preamble and header (everything before first \section)
+        section_match = re.search(r'\\section\{', latex)
+        if section_match:
+            preamble = latex[:section_match.start()]
+            content = latex[section_match.start():]
+            
+            # Only apply fixes to content after first section
+            # Fix isolated declarative commands (not combined with size/color)
+            content = re.sub(r'\{\\bfseries\s+([^}]+)\}', r'\\textbf{\1}', content)
+            content = re.sub(r'\{\\itshape\s+([^}]+)\}', r'\\textit{\1}', content)
+            content = re.sub(r'\{\\ttfamily\s+([^}]+)\}', r'\\texttt{\1}', content)
+            content = re.sub(r'\{\\scshape\s+([^}]+)\}', r'\\textsc{\1}', content)
+            
+            latex = preamble + content
+        else:
+            # No sections found, apply fixes to isolated uses only
+            # Use negative lookbehind to avoid matching combined commands
+            latex = re.sub(r'(?<!\\color\{[^}]{0,20})\{\\bfseries\s+([^}]+)\}', r'\\textbf{\1}', latex)
+            latex = re.sub(r'\{\\itshape\s+([^}]+)\}', r'\\textit{\1}', latex)
+            latex = re.sub(r'\{\\ttfamily\s+([^}]+)\}', r'\\texttt{\1}', latex)
+            latex = re.sub(r'\{\\scshape\s+([^}]+)\}', r'\\textsc{\1}', latex)
+        
+        # Fix URL formatting issues
+        latex = self._fix_url_formatting(latex)
+        
+        return latex
+    
+    def _fix_url_formatting(self, latex: str) -> str:
+        r"""
+        Fix common URL formatting issues in LaTeX.
+        - Remove \underline from href link text
+        - Remove icons from project URLs
+        - Simplify verbose URL displays
+        """
+        import re
+        
+        # Fix: \href{url}{\underline{text}} -> \href{url}{text}
+        latex = re.sub(r'\\href\{([^}]+)\}\{\\underline\{([^}]+)\}\}', r'\\href{\1}{\2}', latex)
+        
+        # Fix: \href{url}{ \faGlobe\ \underline{full-url}} -> \href{url}{Link}
+        # This pattern matches FontAwesome icons + underlined URLs
+        latex = re.sub(
+            r'\\href\{([^}]+)\}\{\s*\\fa\w+\s*\\?\s*\\underline\{[^}]+\}\}',
+            r'\\href{\1}{Link}',
+            latex
+        )
+        
+        # Fix: \href{url}{\faExternalLink} or \href{url}{\faGlobe} -> \href{url}{Link}
+        # Remove standalone icons in project URLs (but preserve in headers)
+        # We only do this if it's NOT in the document header section
+        latex = re.sub(
+            r'(\\section\{Projects\}.*?)\\href\{([^}]+)\}\{\\fa\w+\*?\}',
+            r'\1\\href{\2}{Link}',
+            latex,
+            flags=re.DOTALL
+        )
+        
+        # Fix: \href{url}{full-url-text} -> \href{url}{appropriate-label}
+        # Intelligently replace based on URL content
+        def replace_url_text(match):
+            url = match.group(1).lower()
+            text = match.group(2)
+            
+            # If text looks like a URL, replace with appropriate label
+            if '://' in text or text.startswith('www.') or text.startswith('http'):
+                # Determine appropriate label based on URL
+                if 'github.com' in url:
+                    return f'\\href{{{match.group(1)}}}{{GitHub}}'
+                elif 'linkedin.com' in url:
+                    return f'\\href{{{match.group(1)}}}{{LinkedIn}}'
+                elif 'twitter.com' in url or 'x.com' in url:
+                    return f'\\href{{{match.group(1)}}}{{Twitter}}'
+                else:
+                    # For project URLs or other links, use "Link"
+                    return f'\\href{{{match.group(1)}}}{{Link}}'
+            return match.group(0)
+        
+        latex = re.sub(r'\\href\{([^}]+)\}\{([^}]+)\}', replace_url_text, latex)
+        
+        return latex
+    
+    def _check_font_consistency(self, latex: str) -> List[str]:
+        """
+        Check for font inconsistencies and old-style font commands.
+        Returns list of warnings for font issues.
+        """
+        import re
+        warnings = []
+        
+        # Check for old-style font commands (should not be used)
+        old_style_patterns = [
+            (r'\\bf\b', r'\bf', r'\textbf{}'),
+            (r'\\it\b', r'\it', r'\textit{}'),
+            (r'\\rm\b', r'\rm', r'\textrm{}'),
+            (r'\\tt\b', r'\tt', r'\texttt{}'),
+            (r'\\sc\b', r'\sc', r'\textsc{}'),
+        ]
+        
+        for pattern, command, replacement in old_style_patterns:
+            if re.search(pattern, latex):
+                warnings.append(f"Old-style font command detected: {command} (should use {replacement})")
+        
+        # Check for declarative font commands (should not be used in content)
+        declarative_patterns = [
+            (r'\\bfseries\b', r'\bfseries', r'\textbf{}'),
+            (r'\\itshape\b', r'\itshape', r'\textit{}'),
+            (r'\\ttfamily\b', r'\ttfamily', r'\texttt{}'),
+            (r'\\scshape\b', r'\scshape', r'\textsc{}'),
+        ]
+        
+        # Only check for these outside of \titleformat and other formatting commands
+        content_latex = re.sub(r'\\titleformat\{[^}]*\}\{[^}]*\}', '', latex)
+        content_latex = re.sub(r'\\titlespacing[^\n]*\n', '', content_latex)
+        # Exclude entire header section (before first \section command)
+        section_match = re.search(r'\\section\{', content_latex)
+        if section_match:
+            # Only check content after the first section (skip header)
+            content_latex = content_latex[section_match.start():]
+        # Also exclude any blocks with size commands (like {\LARGE\bfseries Name})
+        content_latex = re.sub(r'\{[^}]*\\(LARGE|Large|large|huge|Huge)[^}]*\}', '', content_latex)
+        # Exclude \color commands that might contain font commands
+        content_latex = re.sub(r'\{[^}]*\\color\{[^}]*\}[^}]*\}', '', content_latex)
+        
+        for pattern, command, replacement in declarative_patterns:
+            if re.search(pattern, content_latex):
+                warnings.append(f"Declarative font command in content: {command} (should use {replacement})")
+        
+        # Check for nested font commands (generally bad practice)
+        nested_patterns = [
+            r'\\textbf\{[^}]*\\textit\{',
+            r'\\textit\{[^}]*\\textbf\{',
+            r'\\textbf\{[^}]*\\texttt\{',
+            r'\\texttt\{[^}]*\\textbf\{',
+        ]
+        
+        for pattern in nested_patterns:
+            if re.search(pattern, latex):
+                warnings.append(f"Nested font commands detected (avoid mixing bold/italic/monospace)")
+        
+        # Check for URL formatting issues
+        url_warnings = self._check_url_formatting(latex)
+        warnings.extend(url_warnings)
+        
+        return warnings
+    
+    def _check_url_formatting(self, latex: str) -> List[str]:
+        r"""
+        Check for URL formatting issues.
+        Returns list of warnings for URL problems.
+        """
+        import re
+        warnings = []
+        
+        # Check for underlined URLs
+        if re.search(r'\\href\{[^}]+\}\{[^}]*\\underline', latex):
+            warnings.append("URLs with \\underline detected (hyperlinks are already underlined)")
+        
+        # Check for URLs displaying full URL text
+        url_pattern = r'\\href\{([^}]+)\}\{([^}]+)\}'
+        matches = re.findall(url_pattern, latex)
+        for url, text in matches:
+            # If text looks like a URL, warn
+            if '://' in text or text.startswith('www.') or text.startswith('http'):
+                warnings.append(f"Full URL displayed in link text: {text} (should be simplified)")
         
         return warnings
     

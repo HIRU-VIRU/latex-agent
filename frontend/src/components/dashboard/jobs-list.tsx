@@ -27,6 +27,7 @@ interface JobDescription {
 
 export function JobsList() {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<JobDescription | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -107,7 +108,7 @@ export function JobsList() {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={() => setShowAddModal(true)}>
+        <Button onClick={() => setShowAddModal(true)} className="bg-gradient-to-r from-orange-600 to-pink-600 hover:from-orange-700 hover:to-pink-700 shadow-lg">
           <Plus className="h-4 w-4 mr-2" />
           Add Job Description
         </Button>
@@ -115,7 +116,7 @@ export function JobsList() {
       
       <div className="grid gap-4 md:grid-cols-2">
         {jobs.map((job) => (
-          <Card key={job.id} className="hover:shadow-md transition-shadow">
+          <Card key={job.id} className="hover:shadow-lg hover:shadow-orange-200 dark:hover:shadow-orange-900 transition-all hover:scale-105 cursor-pointer border-l-4 border-l-orange-400" onClick={() => setSelectedJob(job)}>
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
@@ -165,24 +166,35 @@ export function JobsList() {
 
                 <div className="flex justify-between items-center pt-2">
                   <div className="flex gap-2">
-                    {!job.is_analyzed && (
+                    {!job.is_analyzed ? (
                       <Button 
                         size="sm" 
                         variant="outline" 
                         className="gap-1"
-                        onClick={() => analyzeMutation.mutate(job.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          analyzeMutation.mutate(job.id);
+                        }}
                         disabled={analyzeMutation.isPending}
                       >
                         <Sparkles className="h-3 w-3" />
                         {analyzeMutation.isPending ? 'Analyzing...' : 'Analyze'}
                       </Button>
+                    ) : (
+                      <Badge variant="default" className="gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Analyzed
+                      </Badge>
                     )}
                   </div>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     className="text-destructive"
-                    onClick={() => deleteMutation.mutate(job.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteMutation.mutate(job.id);
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -193,8 +205,102 @@ export function JobsList() {
         ))}
       </div>
       
+      {selectedJob && <JobDetailsModal job={selectedJob} onClose={() => setSelectedJob(null)} />}
       {showAddModal && <AddJobModal onClose={() => setShowAddModal(false)} />}
     </>
+  );
+}
+
+function JobDetailsModal({ job, onClose }: { job: JobDescription; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-background p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h2 className="text-2xl font-bold">{job.title}</h2>
+            <p className="text-muted-foreground flex items-center gap-1">
+              <Building2 className="h-4 w-4" />
+              {job.company || 'Unknown Company'}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        <div className="space-y-4">
+          {/* Job Description */}
+          <div>
+            <h3 className="font-semibold text-sm text-muted-foreground mb-2">Job Description</h3>
+            <div className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-md">
+              {job.raw_text}
+            </div>
+          </div>
+          
+          {/* Required Skills */}
+          {job.required_skills && job.required_skills.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground mb-2">Required Skills</h3>
+              <div className="flex flex-wrap gap-2">
+                {job.required_skills.map((skill) => (
+                  <Badge key={skill} variant="default">
+                    {skill}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Preferred Skills */}
+          {job.preferred_skills && job.preferred_skills.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground mb-2">Preferred Skills</h3>
+              <div className="flex flex-wrap gap-2">
+                {job.preferred_skills.map((skill) => (
+                  <Badge key={skill} variant="outline">
+                    {skill}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Keywords */}
+          {job.keywords && job.keywords.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground mb-2">Keywords</h3>
+              <div className="flex flex-wrap gap-2">
+                {job.keywords.map((keyword) => (
+                  <Badge key={keyword} variant="secondary">
+                    {keyword}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Source URL */}
+          {job.source_url && (
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground mb-1">Source URL</h3>
+              <a 
+                href={job.source_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline flex items-center gap-1"
+              >
+                {job.source_url}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
+          
+          <div className="flex justify-end pt-4">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

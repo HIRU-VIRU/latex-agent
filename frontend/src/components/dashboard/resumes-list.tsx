@@ -37,12 +37,12 @@ interface Template {
 }
 
 const statusConfig = {
-  draft: { icon: Clock, color: 'bg-gray-500', text: 'Draft' },
-  generating: { icon: Loader2, color: 'bg-blue-500', text: 'Generating' },
-  generated: { icon: CheckCircle, color: 'bg-yellow-500', text: 'Generated' },
-  compiling: { icon: Loader2, color: 'bg-blue-500', text: 'Compiling' },
-  compiled: { icon: CheckCircle, color: 'bg-green-500', text: 'Ready' },
-  error: { icon: XCircle, color: 'bg-red-500', text: 'Error' },
+  draft: { icon: Clock, color: 'bg-gradient-to-r from-gray-500 to-gray-600', text: 'Draft' },
+  generating: { icon: Loader2, color: 'bg-gradient-to-r from-blue-500 to-cyan-500 animate-pulse', text: 'Generating' },
+  generated: { icon: CheckCircle, color: 'bg-gradient-to-r from-yellow-500 to-orange-500', text: 'Generated' },
+  compiling: { icon: Loader2, color: 'bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse', text: 'Compiling' },
+  compiled: { icon: CheckCircle, color: 'bg-gradient-to-r from-green-500 to-emerald-500', text: 'Ready' },
+  error: { icon: XCircle, color: 'bg-gradient-to-r from-red-500 to-rose-600', text: 'Error' },
 };
 
 export function ResumesList() {
@@ -129,7 +129,7 @@ export function ResumesList() {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={() => setShowCreateModal(true)}>
+        <Button onClick={() => setShowCreateModal(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
           <Plus className="h-4 w-4 mr-2" />
           Create Resume
         </Button>
@@ -140,7 +140,7 @@ export function ResumesList() {
           const StatusIcon = status.icon;
           
           return (
-            <Card key={resume.id} className="hover:shadow-md transition-shadow">
+            <Card key={resume.id} className="hover:shadow-lg hover:shadow-purple-200 dark:hover:shadow-purple-900 transition-all hover:scale-105 border-l-4 border-l-purple-400">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg">{resume.name}</CardTitle>
