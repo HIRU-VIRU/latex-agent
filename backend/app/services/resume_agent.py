@@ -51,11 +51,15 @@ CRITICAL RULES - VIOLATION WILL CAUSE ERRORS:
    - Reorder bullet points for impact
    - Adjust formatting to match template structure
    - Fix grammar and spelling
+   - Use technical terminology and industry-standard terms
+   - Focus on technical implementation details and architecture
    
 5. FORBIDDEN TRANSFORMATIONS:
    - Adding metrics not in original data (e.g., "improved by 50%")
    - Adding technologies not listed
    - Inventing project features
+   - Creating achievements not mentioned
+   - Adding company names or dates not provided
 
 6. LATEX SYNTAX REQUIREMENTS (CRITICAL):
    - Every opening brace { MUST have a matching closing brace }
@@ -63,10 +67,8 @@ CRITICAL RULES - VIOLATION WILL CAUSE ERRORS:
    - Escape special characters: & % $ # _ { } ~ ^ \\
    - Always close all LaTeX commands properly
    - Test: Count your { and } - they MUST be equal
-   - Creating achievements not mentioned
-   - Adding company names or dates not provided
 
-5. OUTPUT FORMAT:
+7. OUTPUT FORMAT:
    - Return ONLY valid LaTeX code
    - Preserve all template commands exactly
    - Escape special LaTeX characters: & % $ # _ { } ~ ^
@@ -190,15 +192,29 @@ LATEX SYNTAX RULES (MUST FOLLOW):
 INSTRUCTIONS:
 1. Replace all placeholders ({{{{PLACEHOLDER}}}}) with corresponding user data
 2. For {{{{#ARRAY}}}}...{{{{/ARRAY}}}} sections, iterate over the array
-3. For each PROJECT, include ONLY 3 bullet points (no more, no less), each fitting on a single line
-4. For missing data: COMPLETELY REMOVE the entire section (including headers)
-   - If experience array is empty, remove the entire \\section{{Experience}} block
-   - If education array is empty, remove the entire \\section{{Education}} block
-   - DO NOT show placeholders like "[REQUIRED: field_name]"
-5. Preserve all LaTeX commands and structure for sections with data
-6. Ensure the final output will compile to a single-page PDF
-7. VERIFY: Count all {{ and }} - must be equal!
-8. Return ONLY the filled LaTeX code, no explanations
+3. For each PROJECT bullet point:
+   - Use technical terminology (e.g., "Implemented RESTful API", "Architected microservices", "Optimized database queries")
+   - Focus on technical implementation and architecture ("Built scalable X using Y", "Integrated Z with A")
+   - Each point must fit on ONE LINE (max 80-100 characters)
+   - Include specific technologies used (from the project's tech stack)
+   - Start with strong action verbs (Developed, Architected, Implemented, Integrated, Optimized, Designed)
+   - For project URLs: use \\href{{url}}{{Link}} format, do NOT display full URL text
+4. **CRITICAL** For missing/empty data: COMPLETELY DELETE the entire section (including headers and ALL content)
+   - Check if WORK EXPERIENCE data exists - if NO, DELETE entire \\section{{Experience}} block
+   - Check if EDUCATION data exists - if NO, DELETE entire \\section{{Education}} block  
+   - An empty array [] means NO DATA - DELETE that section
+   - NEVER leave empty commands with blank arguments
+   - DO NOT show placeholders or empty structures
+   - Example: if "WORK EXPERIENCE:" is not in user_data, DELETE the Experience section completely
+5. For EDUCATION section:
+   - Include ALL education entries from the data (if user has 2 education items, show both)
+   - Use school, degree, field, dates, location, gpa fields
+6. Preserve all LaTeX commands and structure for sections that HAVE data
+7. Maintain template alignment - do NOT modify spacing, indentation, or formatting commands
+8. Ensure the final output will compile to a single-page PDF
+9. VERIFY: Count all braces - they must be balanced!
+10. VERIFY: No command has empty blank arguments
+11. Return ONLY the filled LaTeX code, no explanations
 
 OUTPUT: Complete, valid LaTeX code ready for compilation (single page)."""
 
@@ -240,26 +256,34 @@ OUTPUT: Complete, valid LaTeX code ready for compilation (single page)."""
                     formatted_parts.append(f"    Dates: {proj['dates']}")
         
         # Experience
-        if "experience" in user_data:
+        if "experience" in user_data and user_data["experience"]:
             formatted_parts.append("\nWORK EXPERIENCE:")
             for i, exp in enumerate(user_data["experience"], 1):
                 formatted_parts.append(f"\n  Experience {i}:")
                 formatted_parts.append(f"    Company: {exp.get('company', 'N/A')}")
                 formatted_parts.append(f"    Title: {exp.get('title', 'N/A')}")
                 formatted_parts.append(f"    Dates: {exp.get('dates', 'N/A')}")
+                if exp.get('location'):
+                    formatted_parts.append(f"    Location: {exp.get('location')}")
                 if exp.get("highlights"):
                     formatted_parts.append(f"    Responsibilities:")
                     for h in exp["highlights"]:
                         formatted_parts.append(f"      - {h}")
         
         # Education
-        if "education" in user_data:
+        if "education" in user_data and user_data["education"]:
             formatted_parts.append("\nEDUCATION:")
             for i, edu in enumerate(user_data["education"], 1):
                 formatted_parts.append(f"\n  Education {i}:")
                 formatted_parts.append(f"    School: {edu.get('school', 'N/A')}")
                 formatted_parts.append(f"    Degree: {edu.get('degree', 'N/A')}")
+                if edu.get('field'):
+                    formatted_parts.append(f"    Field: {edu.get('field')}")
                 formatted_parts.append(f"    Dates: {edu.get('dates', 'N/A')}")
+                if edu.get('location'):
+                    formatted_parts.append(f"    Location: {edu.get('location')}")
+                if edu.get('gpa'):
+                    formatted_parts.append(f"    GPA: {edu.get('gpa')}")
         
         # Any additional fields
         for key, value in user_data.items():

@@ -313,13 +313,30 @@ async def generate_resume(
         
         # Build default education from user if not provided
         default_education = []
-        if current_user.institution:
+        # First check for education array (new format)
+        if hasattr(current_user, 'education') and current_user.education:
+            import json
+            if isinstance(current_user.education, str):
+                default_education = json.loads(current_user.education)
+            elif isinstance(current_user.education, list):
+                default_education = current_user.education
+        # Fallback to old single education fields
+        elif current_user.institution:
             default_education = [{
                 "school": current_user.institution or "",
                 "degree": current_user.degree or "",
                 "field": current_user.field_of_study or "",
                 "dates": current_user.graduation_year or "",
             }]
+        
+        # Build default experience from user if not provided
+        default_experience = []
+        if hasattr(current_user, 'experience') and current_user.experience:
+            import json
+            if isinstance(current_user.experience, str):
+                default_experience = json.loads(current_user.experience)
+            elif isinstance(current_user.experience, list):
+                default_experience = current_user.experience
         
         # Build user data
         user_data = {
@@ -336,7 +353,7 @@ async def generate_resume(
                 }
                 for p in projects
             ],
-            "experience": generate_data.experience or [],
+            "experience": generate_data.experience or default_experience,
             "education": generate_data.education or default_education,
         }
         

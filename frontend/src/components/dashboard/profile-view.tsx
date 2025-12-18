@@ -9,6 +9,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 
+interface ExperienceEntry {
+  company: string;
+  title: string;
+  dates: string;
+  location?: string;
+  highlights: string[];
+}
+
+interface EducationEntry {
+  school: string;
+  degree: string;
+  field: string;
+  dates: string;
+  location?: string;
+  gpa?: string;
+}
+
 interface ProfileData {
   id: string;
   email: string;
@@ -29,6 +46,8 @@ interface ProfileData {
   degree?: string;
   field_of_study?: string;
   graduation_year?: string;
+  experience?: ExperienceEntry[];
+  education?: EducationEntry[];
   skills?: string[];
 }
 
@@ -88,6 +107,8 @@ export function ProfileView() {
         degree: profile.degree,
         field_of_study: profile.field_of_study,
         graduation_year: profile.graduation_year,
+        experience: profile.experience,
+        education: profile.education,
         skills: profile.skills,
       });
       setProfile(response.data);
@@ -314,53 +335,337 @@ export function ProfileView() {
         </CardContent>
       </Card>
 
-      {/* Education */}
+      {/* Work Experience */}
       <Card>
         <CardHeader>
-          <CardTitle>Education</CardTitle>
-          <CardDescription>Your educational background</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Work Experience</CardTitle>
+              <CardDescription>Your professional work history</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newExp: ExperienceEntry = {
+                  company: "",
+                  title: "",
+                  dates: "",
+                  location: "",
+                  highlights: [""],
+                };
+                handleChange("experience", [...(profile.experience || []), newExp]);
+              }}
+            >
+              Add Experience
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="institution">Institution</Label>
-            <Input
-              id="institution"
-              value={profile.institution || ""}
-              onChange={(e) => handleChange("institution", e.target.value)}
-              placeholder="University or college name"
-            />
-          </div>
+        <CardContent className="space-y-6">
+          {(!profile.experience || profile.experience.length === 0) ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No work experience added yet. Click "Add Experience" to get started.
+            </p>
+          ) : (
+            profile.experience.map((exp, idx) => (
+              <div key={idx} className="border rounded-lg p-4 space-y-4">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-semibold">Experience {idx + 1}</h4>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newExperience = profile.experience!.filter((_, i) => i !== idx);
+                      handleChange("experience", newExperience);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Company</Label>
+                    <Input
+                      value={exp.company}
+                      onChange={(e) => {
+                        const newExperience = [...profile.experience!];
+                        newExperience[idx].company = e.target.value;
+                        handleChange("experience", newExperience);
+                      }}
+                      placeholder="Company name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Job Title</Label>
+                    <Input
+                      value={exp.title}
+                      onChange={(e) => {
+                        const newExperience = [...profile.experience!];
+                        newExperience[idx].title = e.target.value;
+                        handleChange("experience", newExperience);
+                      }}
+                      placeholder="e.g., Senior Software Engineer"
+                    />
+                  </div>
+                </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="degree">Degree</Label>
-              <Input
-                id="degree"
-                value={profile.degree || ""}
-                onChange={(e) => handleChange("degree", e.target.value)}
-                placeholder="Bachelor of Science"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="field_of_study">Field of Study</Label>
-              <Input
-                id="field_of_study"
-                value={profile.field_of_study || ""}
-                onChange={(e) => handleChange("field_of_study", e.target.value)}
-                placeholder="Computer Science"
-              />
-            </div>
-          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Dates</Label>
+                    <Input
+                      value={exp.dates}
+                      onChange={(e) => {
+                        const newExperience = [...profile.experience!];
+                        newExperience[idx].dates = e.target.value;
+                        handleChange("experience", newExperience);
+                      }}
+                      placeholder="e.g., Jan 2020 - Present"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Location (optional)</Label>
+                    <Input
+                      value={exp.location || ""}
+                      onChange={(e) => {
+                        const newExperience = [...profile.experience!];
+                        newExperience[idx].location = e.target.value;
+                        handleChange("experience", newExperience);
+                      }}
+                      placeholder="e.g., San Francisco, CA"
+                    />
+                  </div>
+                </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="graduation_year">Graduation Year</Label>
-            <Input
-              id="graduation_year"
-              value={profile.graduation_year || ""}
-              onChange={(e) => handleChange("graduation_year", e.target.value)}
-              placeholder="2024"
-            />
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label>Key Achievements / Responsibilities</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const newExperience = [...profile.experience!];
+                        newExperience[idx].highlights.push("");
+                        handleChange("experience", newExperience);
+                      }}
+                    >
+                      Add Highlight
+                    </Button>
+                  </div>
+                  {exp.highlights.map((highlight, hIdx) => (
+                    <div key={hIdx} className="flex gap-2">
+                      <Input
+                        value={highlight}
+                        onChange={(e) => {
+                          const newExperience = [...profile.experience!];
+                          newExperience[idx].highlights[hIdx] = e.target.value;
+                          handleChange("experience", newExperience);
+                        }}
+                        placeholder="Describe your achievement or responsibility"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newExperience = [...profile.experience!];
+                          newExperience[idx].highlights = newExperience[idx].highlights.filter((_, i) => i !== hIdx);
+                          handleChange("experience", newExperience);
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Education (Multiple Entries) */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Education</CardTitle>
+              <CardDescription>Your educational background</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newEdu: EducationEntry = {
+                  school: "",
+                  degree: "",
+                  field: "",
+                  dates: "",
+                  location: "",
+                  gpa: "",
+                };
+                handleChange("education", [...(profile.education || []), newEdu]);
+              }}
+            >
+              Add Education
+            </Button>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {(!profile.education || profile.education.length === 0) ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No education entries added yet. Click "Add Education" to get started.
+              </p>
+              
+              {/* Legacy single education fields */}
+              {(profile.institution || profile.degree || profile.field_of_study) && (
+                <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
+                  <p className="text-sm font-medium">Legacy Education Entry</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="institution">Institution</Label>
+                    <Input
+                      id="institution"
+                      value={profile.institution || ""}
+                      onChange={(e) => handleChange("institution", e.target.value)}
+                      placeholder="University or college name"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="degree">Degree</Label>
+                      <Input
+                        id="degree"
+                        value={profile.degree || ""}
+                        onChange={(e) => handleChange("degree", e.target.value)}
+                        placeholder="Bachelor of Science"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="field_of_study">Field of Study</Label>
+                      <Input
+                        id="field_of_study"
+                        value={profile.field_of_study || ""}
+                        onChange={(e) => handleChange("field_of_study", e.target.value)}
+                        placeholder="Computer Science"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="graduation_year">Graduation Year</Label>
+                    <Input
+                      id="graduation_year"
+                      value={profile.graduation_year || ""}
+                      onChange={(e) => handleChange("graduation_year", e.target.value)}
+                      placeholder="2024"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            profile.education.map((edu, idx) => (
+              <div key={idx} className="border rounded-lg p-4 space-y-4">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-semibold">Education {idx + 1}</h4>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newEducation = profile.education!.filter((_, i) => i !== idx);
+                      handleChange("education", newEducation);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Institution/School</Label>
+                  <Input
+                    value={edu.school}
+                    onChange={(e) => {
+                      const newEducation = [...profile.education!];
+                      newEducation[idx].school = e.target.value;
+                      handleChange("education", newEducation);
+                    }}
+                    placeholder="University or college name"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Degree</Label>
+                    <Input
+                      value={edu.degree}
+                      onChange={(e) => {
+                        const newEducation = [...profile.education!];
+                        newEducation[idx].degree = e.target.value;
+                        handleChange("education", newEducation);
+                      }}
+                      placeholder="e.g., Bachelor of Science"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Field of Study</Label>
+                    <Input
+                      value={edu.field}
+                      onChange={(e) => {
+                        const newEducation = [...profile.education!];
+                        newEducation[idx].field = e.target.value;
+                        handleChange("education", newEducation);
+                      }}
+                      placeholder="e.g., Computer Science"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Dates</Label>
+                    <Input
+                      value={edu.dates}
+                      onChange={(e) => {
+                        const newEducation = [...profile.education!];
+                        newEducation[idx].dates = e.target.value;
+                        handleChange("education", newEducation);
+                      }}
+                      placeholder="e.g., 2018 - 2022"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Location (optional)</Label>
+                    <Input
+                      value={edu.location || ""}
+                      onChange={(e) => {
+                        const newEducation = [...profile.education!];
+                        newEducation[idx].location = e.target.value;
+                        handleChange("education", newEducation);
+                      }}
+                      placeholder="e.g., Boston, MA"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>GPA (optional)</Label>
+                    <Input
+                      value={edu.gpa || ""}
+                      onChange={(e) => {
+                        const newEducation = [...profile.education!];
+                        newEducation[idx].gpa = e.target.value;
+                        handleChange("education", newEducation);
+                      }}
+                      placeholder="e.g., 3.8/4.0"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 

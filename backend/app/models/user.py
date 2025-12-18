@@ -46,11 +46,19 @@ class User(Base):
     zip_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     
-    # Education/Institution
+    # Education/Institution (legacy single fields - kept for backward compatibility)
     institution: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     degree: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     field_of_study: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     graduation_year: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    
+    # Experience array (stored as JSON)
+    # Format: [{"company": str, "title": str, "dates": str, "location": str, "highlights": [str]}]
+    experience: Mapped[Optional[list]] = mapped_column(JSON(), nullable=True)
+    
+    # Education array (stored as JSON)
+    # Format: [{"school": str, "degree": str, "field": str, "dates": str, "location": str, "gpa": str}]
+    education: Mapped[Optional[list]] = mapped_column(JSON(), nullable=True)
     
     # Skills (stored as JSON)
     skills: Mapped[Optional[list]] = mapped_column(JSON(), nullable=True)

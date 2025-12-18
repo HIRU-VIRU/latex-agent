@@ -86,6 +86,8 @@ class UserProfileResponse(BaseModel):
     degree: Optional[str]
     field_of_study: Optional[str]
     graduation_year: Optional[str]
+    experience: Optional[list]
+    education: Optional[list]
     skills: Optional[list]
     
     class Config:
@@ -111,6 +113,8 @@ class UserProfileUpdate(BaseModel):
     degree: Optional[str] = None
     field_of_study: Optional[str] = None
     graduation_year: Optional[str] = None
+    experience: Optional[list] = None
+    education: Optional[list] = None
     skills: Optional[list] = None
 
 
@@ -396,15 +400,28 @@ Return a JSON object with these fields (use null for any field not found):
 - country: Country
 - headline: Professional title
 - summary: Brief professional summary
-- institution: Educational institution name
-- degree: Degree name
-- field_of_study: Major or field
-- graduation_year: Year only
+- institution: Educational institution name (legacy field)
+- degree: Degree name (legacy field)
+- field_of_study: Major or field (legacy field)
+- graduation_year: Year only (legacy field)
 - linkedin_url: LinkedIn URL
 - website: Portfolio URL
-- skills: Array of skills
+- skills: Array of technical skills
+- experience: Array of work experience entries. Each entry should have:
+  * company: Company name
+  * title: Job title
+  * dates: Employment dates (e.g., "Jan 2020 - Present")
+  * location: Job location (optional)
+  * highlights: Array of 3-4 key achievements or responsibilities
+- education: Array of education entries. Each entry should have:
+  * school: Institution name
+  * degree: Degree type (e.g., "Bachelor of Science")
+  * field: Field of study
+  * dates: Education dates (e.g., "2018 - 2022")
+  * location: School location (optional)
+  * gpa: GPA if mentioned (optional)
 
-Extract only information clearly present."""
+Extract only information clearly present. For experience and education, extract ALL entries found in the resume."""
         
         try:
             logger.info(f"Attempting to parse resume with Gemini...")
@@ -426,8 +443,9 @@ Extract only information clearly present."""
                 import json
                 import re
                 
+                full_prompt = prompt + "\n\nReturn ONLY a valid JSON object, no markdown, no extra text."
                 response_text = await gemini_client.generate_content(
-                    prompt=f"{prompt}\n\nReturn ONLY a valid JSON object, no markdown, no extra text.",
+                    prompt=full_prompt,
                     system_instruction="You are a professional resume parser.",
                     temperature=0.1,
                     max_tokens=1500,
@@ -443,13 +461,14 @@ Extract only information clearly present."""
                     cleaned = cleaned[:-3]
                 cleaned = cleaned.strip()
                 
-                # Extract JSON using regex
-                json_match = re.search(r'\{[\s\S]*\}', cleaned)
-                if json_match:
-                    cleaned = json_match.group(0)
+                # Extract JSON by finding the JSON object boundaries
+                start_idx = cleaned.find(chr(123))  # chr(123) is '{'
+                end_idx = cleaned.rfind(chr(125))  # chr(125) is '}'
+                if start_idx != -1 and end_idx != -1:
+                    cleaned = cleaned[start_idx:end_idx + 1]
                 
                 extracted_data = json.loads(cleaned)
-                logger.info(f"Successfully parsed with fallback method")
+                logger.info("Successfully parsed with fallback method")
             
         except Exception as e:
             logger.error(f"All parsing attempts failed: {type(e).__name__}: {e}", exc_info=True)
@@ -523,6 +542,8 @@ async def get_profile(
         degree=current_user.degree,
         field_of_study=current_user.field_of_study,
         graduation_year=current_user.graduation_year,
+        experience=current_user.experience,
+        education=current_user.education,
         skills=current_user.skills,
     )
 
@@ -571,5 +592,7 @@ async def update_profile(
         degree=current_user.degree,
         field_of_study=current_user.field_of_study,
         graduation_year=current_user.graduation_year,
+        experience=current_user.experience,
+        education=current_user.education,
         skills=current_user.skills,
     )
