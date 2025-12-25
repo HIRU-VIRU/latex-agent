@@ -115,21 +115,111 @@ class GitHubIngestionService:
         token = token_encryptor.decrypt(encrypted_token)
         return Github(token)
     
+    async def fetch_user_repos_fast(
+        self,
+        encrypted_token: str,
+        include_forks: bool = True,
+        include_private: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch ALL repositories using direct GitHub API (faster, async).
+        Handles pagination automatically to get all repos.
+        
+        Args:
+            encrypted_token: Encrypted GitHub access token
+            include_forks: Include forked repositories
+            include_private: Include private repositories
+            
+        Returns:
+            List of all repository metadata dicts
+        """
+        token = token_encryptor.decrypt(encrypted_token)
+        all_repos = []
+        page = 1
+        per_page = 100  # Maximum allowed by GitHub API
+        
+        async with httpx.AsyncClient() as client:
+            while True:
+                response = await client.get(
+                    "https://api.github.com/user/repos",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                    params={
+                        "affiliation": "owner",
+                        "sort": "updated",
+                        "direction": "desc",
+                        "per_page": per_page,
+                        "page": page,
+                    },
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                repos_data = response.json()
+                
+                # No more repos to fetch
+                if not repos_data:
+                    break
+                
+                for repo in repos_data:
+                    # Apply filters
+                    if not include_forks and repo.get("fork", False):
+                        continue
+                    if not include_private and repo.get("private", False):
+                        continue
+                    
+                    all_repos.append({
+                        "github_id": repo["id"],
+                        "full_name": repo["full_name"],
+                        "name": repo["name"],
+                        "description": repo.get("description") or "",
+                        "url": repo["html_url"],
+                        "homepage": repo.get("homepage"),
+                        "languages": {},
+                        "topics": repo.get("topics", []),
+                        "stars": repo.get("stargazers_count", 0),
+                        "forks": repo.get("forks_count", 0),
+                        "watchers": repo.get("watchers_count", 0),
+                        "open_issues": repo.get("open_issues_count", 0),
+                        "is_fork": repo.get("fork", False),
+                        "is_private": repo.get("private", False),
+                        "is_archived": repo.get("archived", False),
+                        "created_at": repo.get("created_at"),
+                        "pushed_at": repo.get("pushed_at"),
+                        "default_branch": repo.get("default_branch"),
+                        "language": repo.get("language"),
+                    })
+                
+                # If we got less than per_page, we've reached the end
+                if len(repos_data) < per_page:
+                    break
+                    
+                page += 1
+        
+        logger.info(f"Fetched {len(all_repos)} total repositories via direct API")
+        return all_repos
+    
     async def fetch_user_repos(
         self,
         encrypted_token: str,
         include_forks: bool = False,
         include_private: bool = True,
         min_stars: int = 0,
+        page: int = 1,
+        per_page: int = 100,
     ) -> List[Dict[str, Any]]:
         """
-        Fetch all repositories for the authenticated user.
+        Fetch repositories for the authenticated user with pagination.
         
         Args:
             encrypted_token: Encrypted GitHub access token
             include_forks: Include forked repositories
             include_private: Include private repositories
             min_stars: Minimum star count filter
+            page: Page number (1-indexed)
+            per_page: Number of results per page (max 100)
             
         Returns:
             List of repository metadata dicts
@@ -138,7 +228,16 @@ class GitHubIngestionService:
         user = gh.get_user()
         repos = []
         
-        for repo in user.get_repos(affiliation="owner"):
+        # PyGithub uses 0-based indexing internally but we use 1-based for API consistency
+        # Get all repos first, then paginate (PyGithub handles this efficiently)
+        all_repos = user.get_repos(affiliation="owner", sort="updated", direction="desc")
+        
+        # Calculate pagination
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        
+        count = 0
+        for repo in all_repos:
             # Apply filters
             if not include_forks and repo.fork:
                 continue
@@ -147,9 +246,17 @@ class GitHubIngestionService:
             if repo.stargazers_count < min_stars:
                 continue
             
-            repos.append(self._repo_to_dict(repo))
+            # Apply pagination
+            if count >= start_idx and count < end_idx:
+                repos.append(self._repo_to_dict(repo))
+            
+            count += 1
+            
+            # Stop if we've collected enough for this page
+            if len(repos) >= per_page:
+                break
         
-        logger.info(f"Fetched {len(repos)} repositories for user {user.login}")
+        logger.info(f"Fetched {len(repos)} repositories (page {page}) for user {user.login}")
         return repos
     
     async def fetch_repo_by_url(

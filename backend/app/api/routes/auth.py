@@ -522,8 +522,12 @@ Extract only information clearly present. For experience and education, extract 
 @router.get("/profile", response_model=UserProfileResponse)
 async def get_profile(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get the current user's complete profile."""
+    # Refresh from database to get latest data
+    await db.refresh(current_user)
+    
     return UserProfileResponse(
         id=str(current_user.id),
         email=current_user.email,
@@ -781,12 +785,14 @@ async def scrape_linkedin_certifications_endpoint(
     
     try:
         # Scrape certifications using Playwright
+        logger.info(f"Starting LinkedIn scrape for: {linkedin_url}")
         certifications = await scrape_linkedin_certifications(linkedin_url)
+        logger.info(f"Scrape returned {len(certifications)} certifications: {certifications}")
         
         if not certifications:
             return {
                 "success": True,
-                "message": "No certifications found on LinkedIn profile",
+                "message": "No certifications found on LinkedIn profile. Make sure you're on the correct profile and have certifications listed.",
                 "certifications": []
             }
         
@@ -799,15 +805,27 @@ async def scrape_linkedin_certifications_endpoint(
             if cert.get('name', '').lower() not in existing_names
         ]
         
-        # Update user certifications
-        current_user.certifications = existing_certs + new_certs
+        logger.info(f"Adding {len(new_certs)} new certifications (filtered from {len(certifications)})")
+        
+        # Update user certifications using direct SQL update for reliability
+        updated_certs = existing_certs + new_certs
+        await db.execute(
+            update(User)
+            .where(User.id == current_user.id)
+            .values(certifications=updated_certs)
+        )
         await db.commit()
+        
+        # Refresh user to get updated data
+        await db.refresh(current_user)
+        
+        logger.info(f"Successfully saved certifications. Total: {len(current_user.certifications or [])}")
         
         return {
             "success": True,
             "message": f"Imported {len(new_certs)} new certifications from LinkedIn",
             "certifications": new_certs,
-            "total_certifications": len(current_user.certifications)
+            "total_certifications": len(updated_certs)
         }
         
     except Exception as e:

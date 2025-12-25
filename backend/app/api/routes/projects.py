@@ -531,3 +531,65 @@ async def list_github_repos(
         )
         for r in repos
     ]
+
+
+class GitHubUserRepo(BaseModel):
+    """GitHub repository from user's account."""
+    full_name: str
+    name: str
+    description: Optional[str]
+    html_url: str
+    stars: int
+    forks: int
+    language: Optional[str]
+    is_private: bool
+    is_fork: bool
+
+
+@router.get("/github/user-repos", response_model=List[GitHubUserRepo])
+async def list_github_user_repos(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List ALL repositories from the user's GitHub account.
+    This fetches directly from GitHub API, not from our database.
+    Automatically handles pagination to get all repos.
+    """
+    # Get user's GitHub connection
+    result = await db.execute(
+        select(GithubConnection).where(
+            GithubConnection.user_id == current_user.id,
+            GithubConnection.is_primary == True,
+        )
+    )
+    github_conn = result.scalar_one_or_none()
+    
+    if not github_conn:
+        raise HTTPException(
+            status_code=400,
+            detail="No GitHub account connected. Please connect your GitHub account first.",
+        )
+    
+    # Fetch ALL repos from GitHub (handles pagination internally)
+    repos = await github_service.fetch_user_repos_fast(
+        encrypted_token=github_conn.encrypted_token,
+        include_forks=True,
+        include_private=True,
+    )
+    
+    # Convert to response format
+    return [
+        GitHubUserRepo(
+            full_name=repo["full_name"],
+            name=repo["name"],
+            description=repo.get("description"),
+            html_url=repo["url"],
+            stars=repo["stars"],
+            forks=repo["forks"],
+            language=repo.get("language"),  # Direct from GitHub API
+            is_private=repo.get("is_private", False),
+            is_fork=repo.get("is_fork", False),
+        )
+        for repo in repos
+    ]

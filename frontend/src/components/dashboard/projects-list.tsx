@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
 import { Github, ExternalLink, RefreshCw, Trash2, Calendar, Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,6 +38,21 @@ export function ProjectsList() {
       const res = await projectsApi.list();
       return res.data as Project[];
     },
+  });
+
+  // Fetch GitHub repos count for the badge
+  const { data: githubReposCount } = useQuery({
+    queryKey: ['github-repos-count'],
+    queryFn: async () => {
+      try {
+        const res = await projectsApi.listGithubUserRepos();
+        return (res.data as any[]).length;
+      } catch {
+        return 0;
+      }
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: false,
   });
 
   const deleteMutation = useMutation({
@@ -85,6 +101,11 @@ export function ProjectsList() {
               <Button variant="outline" className="gap-2" onClick={() => setShowGithubModal(true)}>
                 <Github className="h-4 w-4" />
                 Import from GitHub
+                {githubReposCount !== undefined && githubReposCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                    {githubReposCount}
+                  </Badge>
+                )}
               </Button>
               <Button onClick={() => setShowAddModal(true)}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -106,6 +127,11 @@ export function ProjectsList() {
         <Button variant="outline" className="gap-2 border-purple-300 dark:border-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950" onClick={() => setShowGithubModal(true)}>
           <Github className="h-4 w-4" />
           Import from GitHub
+          {githubReposCount !== undefined && githubReposCount > 0 && (
+            <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+              {githubReposCount}
+            </Badge>
+          )}
         </Button>
         <Button onClick={() => setShowAddModal(true)} className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg">
           <Plus className="h-4 w-4 mr-2" />
@@ -378,13 +404,51 @@ function AddProjectModal({ onClose }: { onClose: () => void }) {
 
 function GithubImportModal({ onClose }: { onClose: () => void }) {
   const [repoUrl, setRepoUrl] = useState('');
+  const [selectedRepo, setSelectedRepo] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [importMode, setImportMode] = useState<'url' | 'dropdown'>('dropdown');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch user's GitHub repositories
+  const { data: userRepos, isLoading: loadingRepos, error: reposError } = useQuery({
+    queryKey: ['github-user-repos'],
+    queryFn: async () => {
+      const res = await projectsApi.listGithubUserRepos();
+      return res.data as Array<{
+        full_name: string;
+        name: string;
+        description?: string;
+        html_url: string;
+        stars: number;
+        forks: number;
+        language?: string;
+        is_private: boolean;
+        is_fork: boolean;
+      }>;
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Filter repos based on search query
+  const filteredRepos = userRepos?.filter(repo => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      repo.full_name.toLowerCase().includes(query) ||
+      repo.name.toLowerCase().includes(query) ||
+      repo.description?.toLowerCase().includes(query) ||
+      repo.language?.toLowerCase().includes(query)
+    );
+  });
+
   const importMutation = useMutation({
     mutationFn: async () => {
+      let url = importMode === 'url' ? repoUrl : selectedRepo;
+      
       // Parse GitHub URL
-      const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
       if (!match) {
         throw new Error('Invalid GitHub URL');
       }
@@ -407,7 +471,7 @@ function GithubImportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background p-6 rounded-lg w-full max-w-md">
+      <div className="bg-background p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Import from GitHub</h2>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -416,25 +480,146 @@ function GithubImportModal({ onClose }: { onClose: () => void }) {
         </div>
         
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="repoUrl">GitHub Repository URL</Label>
-            <Input 
-              id="repoUrl" 
-              value={repoUrl} 
-              onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/username/repository"
-            />
+          {/* Import Mode Tabs */}
+          <div className="flex gap-2 mb-4">
+            <Button
+              variant={importMode === 'dropdown' ? 'default' : 'outline'}
+              onClick={() => setImportMode('dropdown')}
+              className="flex-1"
+            >
+              Select from Your Repos
+            </Button>
+            <Button
+              variant={importMode === 'url' ? 'default' : 'outline'}
+              onClick={() => setImportMode('url')}
+              className="flex-1"
+            >
+              Import by URL
+            </Button>
           </div>
-          
-          <p className="text-sm text-muted-foreground">
-            We will analyze the repository to extract project details, technologies used, and README content.
-          </p>
+
+          {importMode === 'dropdown' ? (
+            <>
+              {loadingRepos ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="h-8 w-8 mx-auto animate-spin text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Loading your repositories...</p>
+                </div>
+              ) : reposError ? (
+                <div className="text-center py-8">
+                  <Github className="h-12 w-12 mx-auto text-red-500 mb-2" />
+                  <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">
+                    Failed to load repositories
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    {(reposError as any)?.response?.data?.detail || 'No GitHub account connected or connection expired'}
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setImportMode('url')}
+                  >
+                    Switch to URL Import
+                  </Button>
+                </div>
+              ) : userRepos && userRepos.length > 0 ? (
+                <>
+                  <div>
+                    <Label htmlFor="repoSearch">Search Repositories</Label>
+                    <Input
+                      id="repoSearch"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search by name, description, or language..."
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {filteredRepos?.length} of {userRepos.length} repositories
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="repoSelect">Select Repository</Label>
+                    <Select
+                      id="repoSelect"
+                      value={selectedRepo}
+                      onChange={(e) => setSelectedRepo(e.target.value)}
+                      className="mt-1"
+                    >
+                      <option value="">-- Select a repository --</option>
+                      {filteredRepos?.map((repo) => (
+                        <option key={repo.full_name} value={repo.html_url}>
+                          {repo.full_name} 
+                          {repo.is_private && ' 🔒'} 
+                          {repo.is_fork && ' 🍴'}
+                          {repo.language && ` • ${repo.language}`}
+                          {` • ⭐ ${repo.stars}`}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  
+                  {selectedRepo && (
+                    <div className="mt-2 p-3 bg-muted rounded-lg">
+                      {(() => {
+                        const repo = userRepos.find(r => r.html_url === selectedRepo);
+                        return repo ? (
+                          <div>
+                            <h3 className="font-semibold">{repo.name}</h3>
+                            {repo.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{repo.description}</p>
+                            )}
+                            <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                              {repo.language && <span>📝 {repo.language}</span>}
+                              <span>⭐ {repo.stars}</span>
+                              <span>🍴 {repo.forks}</span>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+                  
+                  <p className="text-sm text-muted-foreground">
+                    💡 Select a repository from your GitHub account to import. We'll analyze it to extract project details.
+                  </p>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <Github className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    No repositories found. Make sure your GitHub account is connected.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div>
+                <Label htmlFor="repoUrl">GitHub Repository URL</Label>
+                <Input 
+                  id="repoUrl" 
+                  value={repoUrl} 
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder="https://github.com/username/repository"
+                />
+              </div>
+              
+              <p className="text-sm text-muted-foreground">
+                Enter any GitHub repository URL to import it as a project.
+              </p>
+            </>
+          )}
           
           <div className="flex gap-2 justify-end pt-4">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button 
               onClick={() => importMutation.mutate()}
-              disabled={!repoUrl || importMutation.isPending}
+              disabled={
+                (importMode === 'url' && !repoUrl) || 
+                (importMode === 'dropdown' && !selectedRepo) || 
+                importMutation.isPending
+              }
             >
               {importMutation.isPending ? 'Importing...' : 'Import Repository'}
             </Button>
