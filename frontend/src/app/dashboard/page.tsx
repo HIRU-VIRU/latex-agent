@@ -81,8 +81,10 @@ export default function DashboardPage() {
           router.push('/login');
           return;
         }
+
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         
-        const response = await fetch('http://localhost:8000/api/auth/profile', {
+        const response = await fetch(`${apiUrl}/api/auth/profile`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -91,7 +93,7 @@ export default function DashboardPage() {
           setCurrentUser(userData);
           
           // Load GitHub connection status
-          const githubResponse = await fetch('http://localhost:8000/api/auth/github/status', {
+          const githubResponse = await fetch(`${apiUrl}/api/auth/github/status`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (githubResponse.ok) {
@@ -100,7 +102,7 @@ export default function DashboardPage() {
           }
           
           // Load LinkedIn connection status
-          const linkedinResponse = await fetch('http://localhost:8000/api/auth/linkedin/status', {
+          const linkedinResponse = await fetch(`${apiUrl}/api/auth/linkedin/status`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (linkedinResponse.ok) {

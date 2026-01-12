@@ -35,16 +35,19 @@ A **JD-Aware, GitHub-Grounded LaTeX Resume Generation** system. Generate ATS-fri
 
 - Python 3.10+ with `venv` support
 - Node.js 18+ and npm
+- Docker & Docker Compose (for production)
 - Git
 - Google Gemini API key (free tier works!)
 - GitHub OAuth App (for authentication)
 
 ## 🚀 Quick Start
 
-### 1. Clone the Repository
+### Development Setup
+
+#### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/latex-agent.git
+git clone https://github.com/HIRU-VIRU/latex-agent.git
 cd latex-agent
 ```
 
@@ -322,7 +325,58 @@ The matching engine uses multi-signal scoring:
 - **15%** Keyword matching
 - **5%** Recency boost
 
-## 🐛 Troubleshooting
+## � Production Deployment
+
+### Using Docker (Recommended)
+
+```bash
+# 1. Setup environment files
+./setup_production.sh  # or manually copy .env.example files
+
+# 2. Build and run with Docker Compose
+docker-compose up --build -d
+
+# 3. Check logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# 4. Stop services
+docker-compose down
+```
+
+### Hosting Platform Recommendations
+
+**Best Free Options:**
+1. **Railway.app** ⭐ (Recommended)
+   - Supports Docker Compose natively
+   - 500 hours/month free tier
+   - Auto-deploy from GitHub
+   - Built-in environment variables
+
+2. **Render.com**
+   - Free web services
+   - Auto-deploy from GitHub
+   - Built-in PostgreSQL
+
+3. **Fly.io**
+   - Docker-first platform
+   - Generous free tier
+   - Global edge network
+
+### Deployment Checklist
+
+- [ ] Generate secure JWT secret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+- [ ] Update GitHub OAuth callback URL to production domain
+- [ ] Set all environment variables in hosting platform
+- [ ] Update `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_APP_URL` in frontend
+- [ ] Test Docker build locally: `docker-compose up --build`
+- [ ] Verify `.env` is in `.gitignore`
+
+**📖 For detailed deployment instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**
+
+---
+
+## �🐛 Troubleshooting
 
 ### LaTeX Compilation Fails
 - Check for special characters in text

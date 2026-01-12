@@ -1,24 +1,6 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: latex-agent-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-latex_agent}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Redis for task queue
   redis:
     image: redis:7-alpine
@@ -56,20 +38,18 @@ services:
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
+      - ./backend/latex_agent.db:/app/latex_agent.db
+      - ./backend/chroma_data:/app/chroma_data
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/latex_agent
+      - DATABASE_URL=sqlite+aiosqlite:///./latex_agent.db
       - REDIS_URL=redis://redis:6379/0
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
+      - CHROMA_HOST=localhost
+      - CHROMA_PORT=8001
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      chromadb:
-        condition: service_started
     env_file:
-      - .env
+      - backend/.env
 
   # Celery Worker
   celery-worker:
@@ -81,16 +61,15 @@ services:
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
+      - ./backend/latex_agent.db:/app/latex_agent.db
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/latex_agent
+      - DATABASE_URL=sqlite+aiosqlite:///./latex_agent.db
       - REDIS_URL=redis://redis:6379/0
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
     depends_on:
       - backend
       - redis
     env_file:
-      - .env
+      - backend/.env
 
   # LaTeX Compiler Service
   latex-compiler:
@@ -119,14 +98,13 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:8000}
     depends_on:
       - backend
     env_file:
-      - .env
+      - frontend/.env.local
 
 volumes:
-  postgres_data:
   redis_data:
   chroma_data:
   latex_temp:
