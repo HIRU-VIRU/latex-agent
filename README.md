@@ -269,11 +269,11 @@ Result: Projects A and B ranked highest
 
 ## 🎨 LaTeX Templates
 
-Three built-in system templates:
+One built-in system template:
 
-1. **Classic Professional** - Traditional ATS-friendly format
-2. **Modern Tech** - Contemporary design with icons
-3. **Minimal Academic** - Clean academic style
+1. **Base Professional** - Comprehensive ATS-optimized resume template with all sections
+
+Users can create and upload their own custom templates as needed.
 
 Templates use placeholder syntax: `{{placeholder_name}}`
 
