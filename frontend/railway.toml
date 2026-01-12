@@ -1,0 +1,12 @@
+# Railway Configuration for Frontend
+# Tells Railway to use Docker instead of auto-detection
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "frontend/Dockerfile"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
