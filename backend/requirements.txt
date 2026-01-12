@@ -36,8 +36,8 @@ python-docx==1.1.0
 markdown==3.5.1
 
 # Data Processing
-pydantic==2.5.2
-pydantic-settings==2.1.0
+pydantic==2.10.5
+pydantic-settings==2.7.1
 python-dotenv==1.0.0
 numpy==1.26.2
 
@@ -46,8 +46,8 @@ cryptography==41.0.7
 
 # Web Scraping (for JD extraction)
 # playwright==1.40.0  # Disabled - requires browser binaries, causes build timeout
-beautifulsoup4==4.12.2
-lxml==4.9.3
+beautifulsoup4==4.12.3
+lxml==5.3.0
 
 # Utilities
 tenacity==8.2.3
