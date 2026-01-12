@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY_6: Optional[str] = None
     
     # Gemini Model Configuration
-    GEMINI_MODEL: str = "gemini-2.0-flash-lite"
+    GEMINI_MODEL: str = "gemini-2.5-flash"  # 5 RPM, 250K TPM, 20 RPD quota available
     GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
     GEMINI_TEMPERATURE: float = 0.2
     GEMINI_MAX_TOKENS: int = 8192
