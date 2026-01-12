@@ -241,7 +241,7 @@ export default function ResumeEditorPage() {
           <div className="flex-1 bg-muted overflow-auto p-4">
             {resume?.status === 'compiled' && resume?.pdf_path ? (
               <iframe
-                src={`http://localhost:8000/uploads/pdfs/${resumeId.slice(0, 8)}.pdf`}
+                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/uploads/pdfs/${resumeId.slice(0, 8)}.pdf`}
                 className="w-full h-full border-0"
                 title="PDF Preview"
               />

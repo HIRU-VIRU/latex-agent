@@ -129,7 +129,8 @@ export default function DashboardPage() {
 
   const handleGithubConnect = () => {
     const clientId = 'Ov23li7PyDbHv0U1oqbZ';
-    const redirectUri = encodeURIComponent('http://localhost:3000/api/auth/callback/github');
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const redirectUri = encodeURIComponent(`${appUrl}/api/auth/callback/github`);
     const scope = encodeURIComponent('read:user user:email repo');
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
     console.log('Redirecting to GitHub OAuth:', authUrl);
@@ -138,7 +139,8 @@ export default function DashboardPage() {
 
   const handleLinkedInConnect = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/linkedin/authorize', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/auth/linkedin/authorize`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
