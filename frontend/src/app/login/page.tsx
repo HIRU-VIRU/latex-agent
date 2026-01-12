@@ -82,7 +82,7 @@ export default function LoginPage() {
   const handleGithubLogin = () => {
     // Redirect to GitHub OAuth
     const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID || 'Ov23li7PyDbHv0U1oqbZ';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
     const redirectUri = encodeURIComponent(`${appUrl}/api/auth/callback/github`);
     const scope = encodeURIComponent('read:user user:email repo');
     
