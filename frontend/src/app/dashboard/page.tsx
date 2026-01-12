@@ -314,7 +314,8 @@ export default function DashboardPage() {
 
                     try {
                       const token = localStorage.getItem('token');
-                      const response = await fetch('http://localhost:8000/api/auth/upload-resume', {
+                      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                      const response = await fetch(`${apiUrl}/api/auth/upload-resume`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` },
                         body: formData,
@@ -327,7 +328,7 @@ export default function DashboardPage() {
                           description: `Successfully extracted ${data.fields_updated} profile fields. Check the Profile tab!` 
                         });
                         // Reload user data to show updated name
-                        const userResponse = await fetch('http://localhost:8000/api/auth/profile', {
+                        const userResponse = await fetch(`${apiUrl}/api/auth/profile`, {
                           headers: { 'Authorization': `Bearer ${token}` }
                         });
                         if (userResponse.ok) {
